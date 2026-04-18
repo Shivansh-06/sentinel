@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual env
+backend/.venv/
+.venv/
+venv/
+
+# Env files
+.env
+backend/.env
+
+# OS / editor junk
+.DS_Store
+.vscode/
