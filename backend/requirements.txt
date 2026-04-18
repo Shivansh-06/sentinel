@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+asyncpg
+psycopg2-binary
+redis
+rq
+python-dotenv
+pydantic-settings
+alembic
+httpx
+python-multipart
