@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 
@@ -12,6 +13,17 @@ from app.models.case import Case
 
 router = APIRouter()
 
+
+# ── Pydantic schema for PATCH body ──────────────────────────────────────────
+
+class CaseUpdate(BaseModel):
+    status: Optional[str] = None
+    assigned_to: Optional[str] = None
+    notes: Optional[str] = None
+    resolution: Optional[str] = None
+
+
+# ── Entity endpoints ─────────────────────────────────────────────────────────
 
 @router.get("/jobs/{job_id}/entities")
 async def get_job_entities(
@@ -28,8 +40,8 @@ async def get_job_entities(
 ):
     """
     Query entities for a job with rich filtering.
-    This is the primary data retrieval endpoint — equivalent to
-    Zigram's entity results table with column filters.
+    Returns a paginated response: {"job_id", "total", "page", "page_size",
+    "total_pages", "entities": [...]}.
     """
     job_result = await db.execute(select(Job).where(Job.id == job_id))
     job = job_result.scalar_one_or_none()
@@ -128,7 +140,7 @@ async def get_job_summary(job_id: str, db: AsyncSession = Depends(get_db)):
         "job_id": job_id,
         "job_status": job.status,
         "total_entities": job.total_records,
-        "processed": job.processed_records,
+        "processed_records": job.processed_records,   # fixed: was "processed", test uses "processed_records"
         "sanctions_matches": sanctions_count.scalar() or 0,
         "average_risk_score": round(avg_score.scalar() or 0, 2),
         "open_cases": cases_count.scalar() or 0,
@@ -137,6 +149,8 @@ async def get_job_summary(job_id: str, db: AsyncSession = Depends(get_db)):
         },
     }
 
+
+# ── Case endpoints ────────────────────────────────────────────────────────────
 
 @router.get("/cases")
 async def list_cases(
@@ -147,8 +161,9 @@ async def list_cases(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Lists all open cases with filtering.
-    This is the Case Manager queue — what compliance officers work from daily.
+    Lists all cases with filtering and pagination.
+    Response shape: {"total", "page", "page_size", "cases": [...]}
+    Each case has "case_id" (not "id") as its identifier key.
     """
     filters = []
     if status:
@@ -203,32 +218,34 @@ async def list_cases(
 @router.patch("/cases/{case_id}")
 async def update_case(
     case_id: str,
-    status: Optional[str] = None,
-    assigned_to: Optional[str] = None,
-    notes: Optional[str] = None,
-    resolution: Optional[str] = None,
+    body: CaseUpdate,
     db: AsyncSession = Depends(get_db),
 ):
     """
     Update a case status, assignment, notes, or resolution.
-    This is what a compliance officer does when they review a flagged entity.
 
     Valid statuses: pending_review → under_investigation → resolved / escalated / false_positive
     Valid resolutions: cleared, confirmed_match, escalated_to_regulator
+
+    Body fields (all optional):
+      - status: str
+      - assigned_to: str
+      - notes: str
+      - resolution: str
     """
     result = await db.execute(select(Case).where(Case.id == case_id))
     case = result.scalar_one_or_none()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
 
-    if status:
-        case.status = status
-    if assigned_to:
-        case.assigned_to = assigned_to
-    if notes:
-        case.notes = notes
-    if resolution:
-        case.resolution = resolution
+    if body.status is not None:
+        case.status = body.status
+    if body.assigned_to is not None:
+        case.assigned_to = body.assigned_to
+    if body.notes is not None:
+        case.notes = body.notes
+    if body.resolution is not None:
+        case.resolution = body.resolution
         case.resolved_at = datetime.now(timezone.utc)
 
     return {

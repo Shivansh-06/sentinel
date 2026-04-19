@@ -12,8 +12,9 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy      # was service_started — now waits for redis to be ready
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: on-failure
 
   db:
     image: postgres:16-alpine
@@ -35,6 +36,11 @@ services:
     container_name: sentinel_redis
     ports:
       - "6379:6379"
+    healthcheck:                        # added — now other services wait for redis to accept connections
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   worker:
     build: .
@@ -47,8 +53,9 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy      # was service_started
     command: rq worker ingestion --url redis://redis:6379/0
+    restart: on-failure                 # added — if worker crashes on startup it will retry
 
 volumes:
   postgres_data:

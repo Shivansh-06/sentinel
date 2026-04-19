@@ -6,11 +6,11 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models.job import Job
 from app.models.entity import Entity
+from app.models.case import Case
+
 from app.workers.normalizer import get_normalizer
-from app.workers.resolver import find_best_match, batch_score
 from app.workers.screener import screen_entity
 from app.workers.risk_scorer import compute_risk_score
-from app.models.case import Case
 
 logger = logging.getLogger(__name__)
 
@@ -20,12 +20,13 @@ sync_engine = create_engine(settings.sync_database_url)
 def process_job(job_id: str) -> None:
     """
     Full pipeline: normalize → screen → score.
-    Each entity goes through all three stages.
+    Ensures job always reaches a terminal state.
     """
     logger.info(f"Starting job {job_id}")
 
     with Session(sync_engine) as session:
         job = session.get(Job, job_id)
+
         if not job:
             logger.error(f"Job {job_id} not found")
             return
@@ -41,31 +42,41 @@ def process_job(job_id: str) -> None:
             for entity in entities:
                 try:
                     _process_entity(session, entity)
-                    job.processed_records += 1
-                    session.commit()
+
                 except Exception as e:
-                    logger.error(f"Entity {entity.id} failed: {e}")
+                    logger.exception(f"Entity {entity.id} failed")
+
                     entity.status = "error"
                     entity.error = str(e)
+
+                finally:
+                    job.processed_records += 1
                     session.commit()
 
             failed = sum(1 for e in entities if e.status == "error")
-            job.status = "completed" if failed == 0 else "completed_with_errors"
+
+            # IMPORTANT: keep status within DB limits
+            job.status = "completed" if failed == 0 else "completed_error"
+
             session.commit()
-            logger.info(f"Job {job_id} done. {job.processed_records} processed.")
+            logger.info(
+                f"Job {job_id} done. {job.processed_records}/{job.total_records} processed. Failed: {failed}"
+            )
 
         except Exception as e:
-            logger.error(f"Job {job_id} failed fatally: {e}")
+            logger.exception(f"Job {job_id} failed fatally")
+
             job.status = "failed"
             job.error_message = str(e)
+
             session.commit()
 
 
 def _process_entity(session: Session, entity: Entity) -> None:
     """
-    Single entity pipeline — three sequential stages.
-    Failures in screening/scoring don't discard normalization work.
+    Single entity pipeline — normalize → screen → score → case creation.
     """
+
     # Stage 1: Normalize
     normalizer = get_normalizer(entity.entity_type)
     entity.normalized_name = normalizer(entity.raw_name)
@@ -76,6 +87,7 @@ def _process_entity(session: Session, entity: Entity) -> None:
         session,
         entity.entity_type,
     )
+
     entity.sanctions_match = screening_result.is_match
 
     # Stage 3: Risk scoring
@@ -84,9 +96,11 @@ def _process_entity(session: Session, entity: Entity) -> None:
         entity.entity_type,
         entity.country,
     )
+
     entity.risk_score = risk.score
     entity.risk_label = risk.label
 
+    # Store structured details
     entity.match_details = {
         "screening": {
             "is_match": screening_result.is_match,
@@ -105,16 +119,7 @@ def _process_entity(session: Session, entity: Entity) -> None:
         },
     }
 
-    entity.status = "reviewed" if screening_result.requires_review else "screened"
-
-# Auto-create a case for anything that needs attention
-def _process_entity(session: Session, entity: Entity) -> None:
-    # ... existing stages 1-3 above ...
-
     # Stage 4: Auto-case creation
-    # Critical and high risk entities, plus anything requiring review,
-    # automatically get a case opened. Low/medium risk entities that
-    # cleanly pass don't generate case overhead.
     if entity.risk_label in ("critical", "high") or screening_result.requires_review:
         existing_case = session.execute(
             select(Case).where(Case.entity_id == entity.id)
@@ -124,9 +129,13 @@ def _process_entity(session: Session, entity: Entity) -> None:
             case = Case(
                 entity_id=entity.id,
                 risk_score_at_creation=entity.risk_score,
-                status="pending_review" if entity.risk_label in ("critical", "high")
-                       else "needs_investigation",
+                status=(
+                    "pending_review"
+                    if entity.risk_label in ("critical", "high")
+                    else "needs_investigation"
+                ),
             )
             session.add(case)
 
+    # Final entity status
     entity.status = "reviewed" if screening_result.requires_review else "screened"

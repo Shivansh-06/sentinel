@@ -8,6 +8,7 @@ from app.database import Base
 
 
 
+
 class Entity(Base):
     __tablename__ = "entities"
 

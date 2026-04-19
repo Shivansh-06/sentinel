@@ -1,6 +1,5 @@
 import csv
 import io
-import json
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +9,7 @@ from app.database import get_db
 from app.models.job import Job
 from app.models.entity import Entity
 from app.queue import ingestion_queue
-from app.workers.sanctions_fetcher import sync_sanctions_lists
+from app.models.case import Case
 from app.models.sanctioned_entity import SanctionedEntity
 
 router = APIRouter()
@@ -21,13 +20,20 @@ MAX_ROWS = 10_000
 
 
 def parse_csv(content: bytes) -> list[dict]:
-    text = content.decode("utf-8-sig")  # strips BOM if present
-    reader = csv.DictReader(io.StringIO(text))
+    try:
+        text = content.decode("utf-8-sig")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid file encoding")
+
+    try:
+        reader = csv.DictReader(io.StringIO(text))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid CSV format")
 
     if not reader.fieldnames:
         raise HTTPException(status_code=400, detail="CSV file is empty or has no headers")
 
-    headers = {h.strip().lower() for h in reader.fieldnames}
+    headers = {str(h).strip().lower() for h in reader.fieldnames if h}
     if not REQUIRED_COLUMNS.issubset(headers):
         raise HTTPException(
             status_code=400,
@@ -35,13 +41,27 @@ def parse_csv(content: bytes) -> list[dict]:
         )
 
     rows = []
+
     for i, row in enumerate(reader):
         if i >= MAX_ROWS:
             raise HTTPException(
                 status_code=400,
                 detail=f"Maximum {MAX_ROWS} rows allowed per upload",
             )
-        normalized = {k.strip().lower(): v.strip() for k, v in row.items() if v and v.strip()}
+
+        if not isinstance(row, dict):
+            continue
+
+        normalized = {}
+
+        for k, v in row.items():
+            if not k:
+                continue
+            key = k.strip().lower()
+            value = str(v).strip() if v is not None else ""
+            if value:
+                normalized[key] = value
+
         if normalized.get("name"):
             rows.append(normalized)
 
@@ -60,11 +80,20 @@ async def ingest_entities(
         raise HTTPException(status_code=400, detail="Only CSV files are accepted")
 
     content = await file.read()
-    rows = parse_csv(content)
+
+    try:
+        rows = parse_csv(content)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid CSV format: {str(e)}"
+        )
 
     job = Job(total_records=len(rows))
     db.add(job)
-    await db.flush()  # writes job to db and assigns id, without committing
+    await db.flush()
 
     entities = [
         Entity(
@@ -109,6 +138,7 @@ async def get_job_status(job_id: str, db: AsyncSession = Depends(get_db)):
         "created_at": job.created_at,
     }
 
+
 @router.post("/sanctions/sync", status_code=202)
 async def trigger_sanctions_sync(db: AsyncSession = Depends(get_db)):
     """
@@ -130,7 +160,6 @@ async def get_sanctions_stats(db: AsyncSession = Depends(get_db)):
     Shows how many entries are loaded per source.
     Useful for verifying the sync worked before running screens.
     """
-    from sqlalchemy import select, func
     result = await db.execute(
         select(SanctionedEntity.source, func.count(SanctionedEntity.id))
         .group_by(SanctionedEntity.source)
