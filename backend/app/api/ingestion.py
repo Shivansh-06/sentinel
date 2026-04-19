@@ -4,12 +4,14 @@ import json
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from app.database import get_db
 from app.models.job import Job
 from app.models.entity import Entity
 from app.queue import ingestion_queue
+from app.workers.sanctions_fetcher import sync_sanctions_lists
+from app.models.sanctioned_entity import SanctionedEntity
 
 router = APIRouter()
 
@@ -105,4 +107,36 @@ async def get_job_status(job_id: str, db: AsyncSession = Depends(get_db)):
         "processed_records": job.processed_records,
         "error_message": job.error_message,
         "created_at": job.created_at,
+    }
+
+@router.post("/sanctions/sync", status_code=202)
+async def trigger_sanctions_sync(db: AsyncSession = Depends(get_db)):
+    """
+    Triggers a background sync of OFAC and UN sanctions lists.
+    In production this would be a scheduled job (daily cron).
+    For development, call this endpoint manually before running screens.
+    """
+    from app.queue import ingestion_queue
+    ingestion_queue.enqueue(
+        "app.workers.sanctions_fetcher.sync_sanctions_lists",
+        job_timeout=300,
+    )
+    return {"status": "queued", "message": "Sanctions list sync started"}
+
+
+@router.get("/sanctions/stats")
+async def get_sanctions_stats(db: AsyncSession = Depends(get_db)):
+    """
+    Shows how many entries are loaded per source.
+    Useful for verifying the sync worked before running screens.
+    """
+    from sqlalchemy import select, func
+    result = await db.execute(
+        select(SanctionedEntity.source, func.count(SanctionedEntity.id))
+        .group_by(SanctionedEntity.source)
+    )
+    rows = result.all()
+    return {
+        "counts": {source: count for source, count in rows},
+        "total": sum(count for _, count in rows),
     }

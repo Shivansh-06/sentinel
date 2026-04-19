@@ -10,3 +10,7 @@ pydantic-settings
 alembic
 httpx
 python-multipart
+rapidfuzz
+pytest
+nameparser
+unidecode

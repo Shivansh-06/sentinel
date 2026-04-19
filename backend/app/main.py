@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from app.database import engine, Base
 import app.models  # noqa: F401
-from app.api import ingestion
+from app.api import ingestion, results
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
