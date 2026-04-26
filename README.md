@@ -1,145 +1,184 @@
-###Sentinel
-A sanctions screening and entity risk-scoring backend built with FastAPI, PostgreSQL, Redis, and RQ. Sentinel ingests entities (individuals or organisations), runs them through a multi-stage async worker pipeline — normalisation → sanctions list fetching → screening → risk scoring → resolution — and exposes results via a REST API.
+<div align="center">
 
-###What it does
-Given an entity (a person or company name, country, identifiers), Sentinel:
+# 🛡️ Sentinel
 
-Ingests the entity via API and persists it as a Job
-Queues the job using Redis Queue (RQ) for background processing
-Normalises the entity name and identifiers for consistent matching
-Fetches sanctions data from external sources
-Screens the normalised entity against the fetched sanctions list
-Scores country risk and computes an aggregate risk score
-Resolves matches and produces a final Case with screening results
-Serves results via a dedicated results endpoint
+### Sanctions Screening & Entity Risk Scoring Backend
 
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-asyncpg-4169E1?style=flat-square&logo=postgresql&logoColor=white)](https://postgresql.org)
+[![Redis](https://img.shields.io/badge/Redis-RQ-DC382D?style=flat-square&logo=redis&logoColor=white)](https://redis.io)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docker.com)
+[![Tests](https://img.shields.io/badge/Tests-pytest-0A9EDC?style=flat-square&logo=pytest&logoColor=white)](https://pytest.org)
 
-###Architecture
+*Ingest entities. Queue jobs. Screen against sanctions lists. Score risk. Get results.*
+
+</div>
+
+---
+
+## 📌 Overview
+
+Sentinel is a production-style backend that screens individuals and organisations against sanctions lists and assigns them a risk score. Given an entity (name, country, identifiers), it runs it through a **multi-stage async worker pipeline** — normalisation → sanctions fetching → screening → risk scoring → resolution — and exposes structured results via a REST API.
+
+---
+
+## ⚙️ How It Works
+
+```
 POST /ingest
-     │
-     ▼
- Entity saved to PostgreSQL
-     │
-     ▼
+      │
+      ▼
+ Entity persisted to PostgreSQL
+      │
+      ▼
  Job enqueued → Redis Queue (RQ)
-     │
-     ▼
-┌─────────────────────────────────┐
-│         Worker Pipeline         │
-│                                 │
-│  normalizer → sanctions_fetcher │
-│       → screener → risk_scorer  │
-│            → country_risk       │
-│              → resolver         │
-│                → processing     │
-└─────────────────────────────────┘
-     │
-     ▼
+      │
+      ▼
+  ┌──────────────────────────────────────────┐
+  │             Worker Pipeline              │
+  │                                          │
+  │  normalizer  ──►  sanctions_fetcher      │
+  │       │                  │               │
+  │       ▼                  ▼               │
+  │   country_risk  ──►   screener           │
+  │                          │               │
+  │                          ▼               │
+  │                     risk_scorer          │
+  │                          │               │
+  │                          ▼               │
+  │                       resolver           │
+  │                          │               │
+  │                          ▼               │
+  │                      processing          │
+  └──────────────────────────────────────────┘
+      │
+      ▼
  Case + results saved to PostgreSQL
-     │
-     ▼
+      │
+      ▼
 GET /results/{job_id}
+```
 
-###Tech Stack
-LayerTechnologyFrameworkFastAPIDatabasePostgreSQL (asyncpg + SQLAlchemy async)MigrationsAlembicJob QueueRedis + RQ (Redis Queue)ContainerisationDocker + Docker ComposeConfigpydantic-settings + python-dotenvTestingpytestHTTP clienthttpx
+---
 
-###Project Structure
+## 🗂️ Project Structure
+
+```
 sentinel/
-├── backend/
-│   ├── app/
-│   │   ├── api/
-│   │   │   ├── ingestion.py       # POST /ingest endpoint
-│   │   │   └── results.py         # GET /results endpoint
-│   │   ├── models/
-│   │   │   ├── case.py            # Screening case model
-│   │   │   ├── entity.py          # Entity model
-│   │   │   ├── job.py             # Job model
-│   │   │   └── sanctioned_entity.py
-│   │   ├── workers/
-│   │   │   ├── normalizer.py      # Name/identifier normalisation
-│   │   │   ├── sanctions_fetcher.py # Fetch external sanctions data
-│   │   │   ├── screener.py        # Match entity against sanctions list
-│   │   │   ├── risk_scorer.py     # Compute aggregate risk score
-│   │   │   ├── country_risk.py    # Country-level risk assessment
-│   │   │   ├── resolver.py        # Resolve and finalise matches
-│   │   │   └── processing.py      # Pipeline orchestration
-│   │   ├── config.py
-│   │   ├── database.py            # Async DB session setup
-│   │   ├── main.py                # FastAPI app entrypoint
-│   │   └── queue.py               # RQ queue setup
-│   ├── test_data/
-│   │   ├── test.csv
-│   │   ├── empty.csv
-│   │   ├── missing_name.csv
-│   │   └── invalid_format.txt
-│   ├── tests/
-│   │   ├── test_ingestion_negative.py
-│   │   └── test_pipeline.py
-│   ├── Dockerfile
-│   ├── docker-compose.yml
-│   ├── pytest.ini
-│   └── requirements.txt
-└── requirements.txt
+└── backend/
+    ├── app/
+    │   ├── api/
+    │   │   ├── ingestion.py        # POST /ingest
+    │   │   └── results.py          # GET /results/{job_id}
+    │   ├── models/
+    │   │   ├── case.py
+    │   │   ├── entity.py
+    │   │   ├── job.py
+    │   │   └── sanctioned_entity.py
+    │   ├── workers/
+    │   │   ├── normalizer.py
+    │   │   ├── sanctions_fetcher.py
+    │   │   ├── screener.py
+    │   │   ├── risk_scorer.py
+    │   │   ├── country_risk.py
+    │   │   ├── resolver.py
+    │   │   └── processing.py
+    │   ├── config.py
+    │   ├── database.py
+    │   ├── main.py
+    │   └── queue.py
+    ├── test_data/
+    │   ├── test.csv
+    │   ├── empty.csv
+    │   ├── missing_name.csv
+    │   └── invalid_format.txt
+    ├── tests/
+    │   ├── test_ingestion_negative.py
+    │   └── test_pipeline.py
+    ├── Dockerfile
+    ├── docker-compose.yml
+    ├── pytest.ini
+    └── requirements.txt
+```
 
-Getting Started
-Prerequisites
+---
 
-Docker and Docker Compose
-Python 3.11+
+## 🛠️ Tech Stack
 
-Run with Docker (recommended)
-bashgit clone https://github.com/Shivansh-06/sentinel.git
+| Layer | Technology |
+|---|---|
+| **Framework** | FastAPI |
+| **Database** | PostgreSQL via asyncpg + SQLAlchemy (async) |
+| **Migrations** | Alembic |
+| **Job Queue** | Redis + RQ |
+| **Containerisation** | Docker + Docker Compose |
+| **Config** | pydantic-settings + python-dotenv |
+| **Testing** | pytest + httpx |
+
+---
+
+## 🚀 Getting Started
+
+### Run with Docker *(recommended)*
+
+```bash
+git clone https://github.com/Shivansh-06/sentinel.git
 cd sentinel/backend
 
 cp .env.example .env
-# Edit .env with your config
+# fill in DATABASE_URL and REDIS_URL
 
 docker-compose up --build
-The API will be available at http://localhost:8000.
-Interactive docs: http://localhost:8000/docs
-Run locally
-bashcd sentinel/backend
+```
 
-python -m venv .venv
-source .venv/bin/activate       # Windows: .venv\Scripts\activate
+> API: `http://localhost:8000` &nbsp;|&nbsp; Docs: `http://localhost:8000/docs`
+
+### Run locally
+
+```bash
+cd sentinel/backend
+python -m venv .venv && source .venv/bin/activate
 
 pip install -r requirements.txt
-
 cp .env.example .env
-# Set DATABASE_URL and REDIS_URL in .env
 
-# Run Alembic migrations
 alembic upgrade head
-
-# Start the API
 uvicorn app.main:app --reload
 
-# In a separate terminal, start the RQ worker
-rq worker --with-scheduler
+# separate terminal
+rq worker
+```
 
-###API Reference
-POST /ingest
-Ingest one or more entities for screening.
-Request body (CSV upload or JSON):
-json{
+---
+
+## 📡 API Reference
+
+### `POST /ingest`
+Ingest entities for screening. Accepts CSV upload or JSON body.
+
+```json
+{
   "entities": [
-    {
-      "name": "John Doe",
-      "country": "IR",
-      "identifier": "PASS-12345"
-    }
+    { "name": "John Doe", "country": "IR", "identifier": "PASS-12345" }
   ]
 }
-Response:
-json{
+```
+```json
+{
   "job_id": "a1b2c3d4-...",
   "status": "queued",
   "entity_count": 1
 }
-GET /results/{job_id}
-Retrieve screening results for a job.
-Response:
-json{
+```
+
+---
+
+### `GET /results/{job_id}`
+Retrieve screening results for a completed job.
+
+```json
+{
   "job_id": "a1b2c3d4-...",
   "status": "completed",
   "cases": [
@@ -152,28 +191,35 @@ json{
     }
   ]
 }
+```
 
-###Running Tests
-bashcd sentinel/backend
+---
 
+## 🧪 Tests
+
+```bash
+cd sentinel/backend
 pytest tests/ -v
-Test coverage includes:
+```
 
-test_ingestion_negative.py — invalid file formats, empty CSVs, missing required fields
-test_pipeline.py — end-to-end pipeline execution and result validation
+| File | What it covers |
+|---|---|
+| `test_ingestion_negative.py` | Empty CSV, invalid format, missing required fields |
+| `test_pipeline.py` | End-to-end pipeline execution and result validation |
 
-Test fixtures are located in test_data/.
+---
 
-###Environment Variables
-Copy .env.example to .env and configure:
-envDATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/sentinel
+## 🔐 Environment Variables
+
+```env
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/sentinel
 REDIS_URL=redis://localhost:6379
+```
 
-###Design Decisions
-Why RQ over Celery? RQ is simpler to configure and debug for a single-broker setup. The job model maps cleanly to RQ's job lifecycle (queued → started → finished/failed).
-Why async SQLAlchemy + asyncpg? The ingestion endpoint can receive batch entity submissions. Async I/O ensures the API remains non-blocking while workers process jobs concurrently.
-Why Alembic? Schema migrations are versioned and reproducible across environments — a requirement for any production-grade backend.
+---
 
-###Author
-Shivansh Goyal
-github.com/Shivansh-06 · linkedin.com/in/shivansh-goyal-052154321
+<div align="center">
+
+Made by [Shivansh Goyal](https://github.com/Shivansh-06)
+
+</div>
