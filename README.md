@@ -1,7 +1,7 @@
-Sentinel
+###Sentinel
 A sanctions screening and entity risk-scoring backend built with FastAPI, PostgreSQL, Redis, and RQ. Sentinel ingests entities (individuals or organisations), runs them through a multi-stage async worker pipeline — normalisation → sanctions list fetching → screening → risk scoring → resolution — and exposes results via a REST API.
 
-What it does
+###What it does
 Given an entity (a person or company name, country, identifiers), Sentinel:
 
 Ingests the entity via API and persists it as a Job
@@ -14,7 +14,7 @@ Resolves matches and produces a final Case with screening results
 Serves results via a dedicated results endpoint
 
 
-Architecture
+###Architecture
 POST /ingest
      │
      ▼
@@ -40,10 +40,10 @@ POST /ingest
      ▼
 GET /results/{job_id}
 
-Tech Stack
+###Tech Stack
 LayerTechnologyFrameworkFastAPIDatabasePostgreSQL (asyncpg + SQLAlchemy async)MigrationsAlembicJob QueueRedis + RQ (Redis Queue)ContainerisationDocker + Docker ComposeConfigpydantic-settings + python-dotenvTestingpytestHTTP clienthttpx
 
-Project Structure
+###Project Structure
 sentinel/
 ├── backend/
 │   ├── app/
@@ -117,7 +117,7 @@ uvicorn app.main:app --reload
 # In a separate terminal, start the RQ worker
 rq worker --with-scheduler
 
-API Reference
+###API Reference
 POST /ingest
 Ingest one or more entities for screening.
 Request body (CSV upload or JSON):
@@ -153,7 +153,7 @@ json{
   ]
 }
 
-Running Tests
+###Running Tests
 bashcd sentinel/backend
 
 pytest tests/ -v
@@ -164,16 +164,16 @@ test_pipeline.py — end-to-end pipeline execution and result validation
 
 Test fixtures are located in test_data/.
 
-Environment Variables
+###Environment Variables
 Copy .env.example to .env and configure:
 envDATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/sentinel
 REDIS_URL=redis://localhost:6379
 
-Design Decisions
+###Design Decisions
 Why RQ over Celery? RQ is simpler to configure and debug for a single-broker setup. The job model maps cleanly to RQ's job lifecycle (queued → started → finished/failed).
 Why async SQLAlchemy + asyncpg? The ingestion endpoint can receive batch entity submissions. Async I/O ensures the API remains non-blocking while workers process jobs concurrently.
 Why Alembic? Schema migrations are versioned and reproducible across environments — a requirement for any production-grade backend.
 
-Author
+###Author
 Shivansh Goyal
 github.com/Shivansh-06 · linkedin.com/in/shivansh-goyal-052154321
