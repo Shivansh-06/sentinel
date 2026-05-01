@@ -1,0 +1,206 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 24px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.badge_danger { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-border); }
+.badge_warn { background: var(--warn-bg); color: var(--warn); border-color: var(--warn-border); }
+.badge_success { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
+.badge_info { background: var(--info-bg); color: var(--info); border-color: var(--info-border); }
+.badge_neutral { background: var(--surface3); color: var(--text2); border-color: var(--border); }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border2);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s, transform 0.08s;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--surface2);
+  border-color: var(--border3);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.btn_primary {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+}
+
+.btn_primary:hover:not(:disabled) {
+  background: var(--accent2);
+  border-color: var(--accent2);
+}
+
+.btn_danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-color: var(--danger-border);
+}
+
+.btn_ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--accent);
+}
+
+.btn_ghost:hover:not(:disabled) {
+  background: var(--accent-bg);
+  border-color: transparent;
+  color: var(--accent-text);
+}
+
+.btn_sm { height: 30px; padding: 0 12px; font-size: 12px; }
+.btn_md { height: 38px; padding: 0 16px; }
+.btn_lg { height: 44px; padding: 0 20px; font-size: 14px; }
+
+.spinner {
+  display: inline-block;
+  border: 2px solid var(--border2);
+  border-top-color: var(--accent2);
+  border-radius: 999px;
+  animation: spin 0.7s linear infinite;
+}
+
+.spinnerInline {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 999px;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.riskWrap {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 128px;
+}
+
+.riskTrack {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface3);
+  overflow: hidden;
+}
+
+.riskFill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.riskNum {
+  min-width: 38px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.metricCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: var(--shadow-sm);
+}
+
+.metricLabel {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text3);
+}
+
+.metricValue {
+  font-size: 25px;
+  line-height: 1.1;
+  font-weight: 750;
+  color: var(--text);
+}
+
+.metricSub {
+  font-size: 12px;
+  color: var(--text2);
+}
+
+.sub_up { color: var(--success); }
+.sub_danger { color: var(--danger); }
+.sub_warn { color: var(--warn); }
+
+.monoId {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text3);
+}
+
+.empty {
+  padding: 46px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  text-align: center;
+}
+
+.emptyIcon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--surface3);
+  color: var(--text3);
+  font-family: var(--font-mono);
+  font-size: 15px;
+}
+
+.emptyTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.emptySub {
+  max-width: 360px;
+  color: var(--text2);
+  font-size: 13px;
+  line-height: 1.5;
+}

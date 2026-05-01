@@ -106,6 +106,7 @@ async def ingest_entities(
     ]
     db.add_all(entities)
     await db.flush()
+    await db.commit()
 
     ingestion_queue.enqueue(
         "app.workers.processing.process_job",
@@ -168,4 +169,69 @@ async def get_sanctions_stats(db: AsyncSession = Depends(get_db)):
     return {
         "counts": {source: count for source, count in rows},
         "total": sum(count for _, count in rows),
+    }
+
+@router.get("/queue")
+async def get_queue_status(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Job).order_by(Job.created_at.desc()).limit(20))
+    jobs = result.scalars().all()
+    return [
+        {
+            "job_id": job.id,
+            "status": job.status,
+            "total_records": job.total_records,
+            "processed_records": job.processed_records,
+            "error_message": job.error_message,
+            "created_at": job.created_at,
+        }
+        for job in jobs
+    ]
+
+@router.get("/flags")
+async def get_flags(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Entity.country, func.count(Entity.id)).group_by(Entity.country)
+    )
+    rows = result.all()
+    return {
+        "by_country": [
+            {"country": country, "count": count}
+            for country, count in rows
+        ]
+    }
+
+
+@router.post("/ingest/manual", status_code=202)
+async def ingest_manual(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    name = payload.get("name")
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+
+    job = Job(total_records=1)
+    db.add(job)
+    await db.flush()
+
+    entity = Entity(
+        job_id=job.id,
+        raw_name=name,
+        entity_type=payload.get("entity_type"),
+        country=payload.get("country"),
+    )
+
+    db.add(entity)
+    await db.flush()
+    await db.commit()
+
+    ingestion_queue.enqueue(
+        "app.workers.processing.process_job",
+        job.id,
+    )
+
+    return {
+        "job_id": job.id,
+        "status": "queued",
+        "total_records": 1
     }

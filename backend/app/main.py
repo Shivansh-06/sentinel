@@ -6,10 +6,14 @@ from sqlalchemy import select, func
 
 from fastapi.responses import JSONResponse
 import logging
+from app.auth import get_current_user
 from app.database import engine, Base, get_db
 import app.models  # noqa: F401
-from app.api import ingestion, results
+from app.api import auth, ingestion, results
 from app.models.case import Case
+from fastapi.middleware.cors import CORSMiddleware
+
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -26,8 +30,26 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.include_router(ingestion.router, prefix="/api/v1", tags=["ingestion"])
-app.include_router(results.router, prefix="/api/v1", tags=["results"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(auth.router, prefix="/api/v1", tags=["auth"])
+app.include_router(
+    ingestion.router,
+    prefix="/api/v1",
+    tags=["ingestion"],
+    dependencies=[Depends(get_current_user)],
+)
+app.include_router(
+    results.router,
+    prefix="/api/v1",
+    tags=["results"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 

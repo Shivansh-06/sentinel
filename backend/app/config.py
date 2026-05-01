@@ -13,6 +13,14 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     secret_key: str
+    auth_username: str = "admin"
+    auth_password: str = "sentinel_admin"
+    auth_password_hash: str | None = None
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 480
+    default_admin_username: str = "admin"
+    default_admin_password: str = "admin123"
+    access_token_expire_minutes: int = 480
 
     @property
     def database_url(self) -> str:
